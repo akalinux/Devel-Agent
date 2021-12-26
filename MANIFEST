@@ -1,3 +1,4 @@
+Changes
 CONTRIBUTING.md
 lib/Devel/Agent/AwareRole.pm
 lib/Devel/Agent.pm
@@ -10,6 +11,7 @@ POC/has.pl
 POC/TestA.pm
 POC/TestB.pm
 POC/trace.pl
+README.md
 t/Devel-Agent-Proxy.t
 t/Devel-Agent.t
 t/TestMe2.pm
