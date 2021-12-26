@@ -12,6 +12,7 @@ WriteMakefile(
       Data::Dumper 0
       Modern::Perl 0
       Role::Tiny   0
+      Moo          0
     )
     }
 );
