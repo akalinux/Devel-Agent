@@ -362,7 +362,7 @@ SKIP: {
       },
       on_frame_end=>sub {
         my ($self,$frame,$depth)=@_;
-        ok(1,'should not end up in our trace');
+        ok(1,'this unit test should not end up in our trace');
         #diag Dumper($frame);
         #$last_id=$frame->{end_id};
         #$frames->{$frame->{order_id}}=$frame;
@@ -455,7 +455,6 @@ SKIP: {
 
     $self->stop_trace;
     diag Dumper($self->trace);
-    exit;
     check_stack($self->trace,[
       gm('TestMe3::new',1),
       gm('TestMe3::test_a',1),
@@ -463,11 +462,11 @@ SKIP: {
 
   }
 
-  if(0){
+  if(1){
     $TESTS=0;
     $SET='BLOCK 11 AnyEvent testing';
     $self=DB->new(
-      ignore_calling_class_re=>[qr/^Test2::/s,qr/^Test::/],
+      ignore_calling_class_re=>[qr/^Test2::/s,qr/^Test::/,],
       ignore_begin_method=>1,
       save_to_stack=>1,
       filter_on_args=>sub {
@@ -483,10 +482,10 @@ SKIP: {
 
 
     my $path=File::Spec->catfile($dir,'test');
-    my $fh=IO::File->new('>',$path);
+    my $fh=IO::File->new($path,'>');
 
     my $str='';
-    for(1 .. 100) {
+    for(1 .. 3) {
       my $line="$_\n";
       $str .=$line;
       $fh->print($line);
@@ -495,20 +494,36 @@ SKIP: {
 
     $fh->close;
 
-    #$fh=IO::File->new('<',
     $self->start_trace;
 
     my $cv=AnyEvent->condvar;
 
-    $cv->send('test');
+    my $check='';
+    my $watcher;
+    {
+    $fh=IO::File->new($path,'<');
+    $watcher=AnyEvent->io(
+      fh=>$fh,
+      poll=>'r',
+      cb=>sub {
+        my $line=$fh->getline;
+        if(defined($line)) {
+          $check .=$line;
+
+        } else {
+          $fh->close;
+          undef $watcher;
+          undef $fh;
+          $cv->send('test');
+        }
+      }
+    );
     $cv->recv;
+    }
 
     $self->stop_trace;
-    #diag Dumper($self->trace);
-    check_stack($self->trace,[
-      gm('TestMe3::new',1),
-      gm('TestMe3::test_a',1),
-    ]);
+    diag Dumper($self->trace);
+    cmp_ok($str,'eq',$check,'make sure our calls to anyevent work');
 
   }
 }

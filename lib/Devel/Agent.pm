@@ -87,10 +87,7 @@ BEGIN {
     $^P=$^P & ($^P ^ $opt);
   }
 
-  # may or may not be compiled with -Dxx option
-  eval { $^D =0};
 }
-
 
 =head1 Agent interface
 
@@ -121,7 +118,6 @@ Inside you script you can issue the following
   # to dump a very human readable full trace
   print Dumper($db->trace);
 
-
 But altering you code is far from ideal.
 
 Another option is to load the agent and a module that pre-configures it for use such as  the L<Devel::Trace::EveryThing> module, wich provides a stack trace to STDERR in real time as frames begin and exit.
@@ -139,9 +135,6 @@ This section documents the %args the be passed to the new DB(%args) or DB->new(%
 # prevent indexing ( as ya this will be noticed in the indexing process for sure!!! )
 package 
   DB;
-
-# ADD THIS TO THE SYNOPSIS!!!
-# PERL5OPT='-d:Agent'
 
 #use Modern::Perl;
 use strict;
@@ -224,7 +217,6 @@ sub DEFAULT_DEPTH () { 4 }
 our @EXCLUDE_DEFAULTS=(
   __PACKAGE__,
   qw(
-    DB
     Data::Dumper
     Time::HiRes
     Method::Generate::Accessor
@@ -502,7 +494,7 @@ has existing_trace=>(
 
 =item * process_result=>CodeRef
 
-This callback can be used to evaluate/modify the results of a callback. 
+This callback can be used to evaluate/modify the results of a traced method in this callback.
 
 Example callback
 
@@ -661,7 +653,10 @@ sub close_depth {
   my ($self,$depth)=@_;
 
   # work around for the $self->stop_trace;
-  return unless defined $self->depths->[$depth];
+  unless(defined $self->depths->[$depth]) {
+    print "$depth is not defined\n";
+    return;
+  }
 
   my $last=pop $self->depths->@*;
   my $t0=$last->{t0};
@@ -978,8 +973,8 @@ sub close_sub {
   }
   my $depth=$level->[1];
   my $last=$self->depths->[$depth];
-  $self->process_result->($self,$res,$last);
   $self->close_to($depth);
+  $self->process_result->($self,$res,$last);
   $self->restore_trace;
 }
 
