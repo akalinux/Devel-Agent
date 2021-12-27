@@ -27,7 +27,7 @@ our $dir=tempdir;
 our $SET;
 our $TESTS=0;
 SKIP: {
-  skip 'PERL5OPT="-d:Agent" is not set',326 unless $^P==35;
+  skip 'PERL5OPT="-d:Agent" is not set',300 unless $^P==35;
 
   my $self=DB->new( 
     save_to_stack=>1,

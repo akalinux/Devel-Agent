@@ -1,7 +1,7 @@
 0.0001
   -- Inital Checkin
 0.001
-  -- Good enough to release, but needs a lot more work unit tessts and documentation
+  -- Good enough to release, but needs a lot more work unit tests and documentation
 0.002
   -- Pod fixups
 0.003
@@ -9,3 +9,4 @@
 0.004
   -- Flushed out the "agent aware" interface
   -- Expanded pod
+  -- unit test skip count is now correct
