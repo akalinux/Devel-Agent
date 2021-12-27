@@ -2,6 +2,7 @@ package Devel::Agent::AwareRole;
 
 use Modern::Perl;
 use Role::Tiny;
+our $VERSION=.001;
 require Scalar::Util;
 
 sub ___db_stack_filter { 
@@ -23,9 +24,9 @@ sub ___db_stack_filter {
 1;
 __END__
 
-=head 1 NAME
+=head1 NAME
 
-Devel::Agent::AwareRole
+Devel::Agent::AwareRole - default agent role
 
 =head1 SYNOPSIS
 

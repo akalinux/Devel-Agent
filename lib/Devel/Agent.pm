@@ -2,7 +2,7 @@ package Devel::Agent;
 
 =head1 NAME
 
-Devel::Agent
+Devel::Agent - Agent like debugger interface
 
 =head1 SYNOPSIS
 
@@ -19,7 +19,7 @@ This is accomplished by running the script or code in debug mode, "perl -d:Agent
 use strict;
 use warnings;
 use 5.34.0;
-our $VERSION=.004;
+our $VERSION=.005;
 
 our %VER_FIX;
 BEGIN {
@@ -1234,6 +1234,10 @@ Michael Shipper L<AKALINUX@CPAN.ORG>
 =head1 Silly stuff
 
 Please forgive the typos, this was written on holiday in my spare time.
+
+=head1 LICENSE
+
+This code is released under the terms of the perl5 licence itself.  Please see LICENSE.md for more details.
 
 =head1 See Also
 
