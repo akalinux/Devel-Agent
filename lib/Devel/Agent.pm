@@ -19,7 +19,7 @@ This is accomplished by running the script or code in debug mode, "perl -d:Agent
 use strict;
 use warnings;
 use 5.34.0;
-our $VERSION=.002;
+our $VERSION=.003;
 
 our %VER_FIX;
 BEGIN {

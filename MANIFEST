@@ -1,7 +1,3 @@
-blib/lib/Devel/Agent/AwareRole.pm
-blib/lib/Devel/Agent/EveryThing.pm
-blib/lib/Devel/Agent.pm
-blib/lib/Devel/Agent/Proxy.pm
 Changes
 CONTRIBUTING.md
 examples/everything.pl
