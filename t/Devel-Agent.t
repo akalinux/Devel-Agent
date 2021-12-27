@@ -437,15 +437,6 @@ SKIP: {
       ignore_calling_class_re=>[qr/^Test2::/s,qr/^Test::/],
       ignore_begin_method=>1,
       save_to_stack=>1,
-      filter_on_args=>sub {
-        my ($self,$frame,$args,$raw_caller)=@_;
-        if($args->$#*!=-1 && defined($args->[0]) && blessed($args->[0])) {
-          if(my $cb=$args->[0]->can('___db_stack_filter')) {
-            return $args->[0]->$cb(@_);
-          }
-        }
-        return 1;
-      },
     );
 
     $self->start_trace;

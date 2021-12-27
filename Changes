@@ -6,3 +6,6 @@
   -- Pod fixups
 0.003
   -- removed blib/* from manifest
+0.004
+  -- Flushed out the "agent aware" interface
+  -- Expanded pod
