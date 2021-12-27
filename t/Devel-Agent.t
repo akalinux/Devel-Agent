@@ -362,11 +362,6 @@ SKIP: {
       },
       on_frame_end=>sub {
         my ($self,$frame,$depth)=@_;
-        if($frame->{class_method} eq 'TestMe::fatal') {
-          ok($frame->{error},$SET." Frame should be in error");
-        } else {
-          ok(!$frame->{error},$SET." Frame should not be in error") or diag Dumper($frame);
-        }
         ok(1,'should not end up in our trace');
         #diag Dumper($frame);
         #$last_id=$frame->{end_id};

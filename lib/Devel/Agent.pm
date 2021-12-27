@@ -98,6 +98,38 @@ The Agent interface is implemented via an on demand debugger that can be turned 
 
 The agent interface itself is activated by setting $DB::Agent to an instance of itself.
 
+To turn tracing on:
+
+Make sure you either start your perl script -d:Agent or set PERL5OPT="-d:Agent" before launching your script
+
+Inside you script you can issue the following
+
+  use Data::Dumper;
+
+  my $db=DB->new(
+    save_to_stack=>1
+  );
+
+  $db->start_trace;
+
+  # run some code
+  ...
+
+  # and we are done wathcing
+  $db->stop_trace;
+
+  # to dump a very human readable full trace
+  print Dumper($db->trace);
+
+
+But altering you code is far from ideal.
+
+Another option is to load the agent and a module that pre-configures it for use such as  the L<Devel::Trace::EveryThing> module, wich provides a stack trace to STDERR in real time as frames begin and exit.
+
+Example using: Devel::Trace::EveryThing
+
+  perl -Ilib -d:Agent -MDevel::Agent::EveryThing examples/everything.pl
+
 =head1 DB Constructor options
 
 This section documents the %args the be passed to the new DB(%args) or DB->new(%args) call.  For each option documented in this section, there is an accesor by that given name that can be called by $self->$name($new_value) or my $current_value=$self->$name.
@@ -178,6 +210,10 @@ sub new {
       $self->{$key}=$self->$cb();
     }
   }
+
+  # force out what pid and tid we are from
+  $self->pid;
+  $self->tid;
   return $self;
 }
 
@@ -277,22 +313,6 @@ has excludes=>(
       map {($_,1)}  
       @EXCLUDE_DEFAULTS
     }
-  },
-);
-
-=item * last_error=>Str
-
-This is used by the trace process to determine where the last $@ was defined, this value is reset on each trace.
-
-=cut
-
-has last_error=>(
-  is=>'rw',
-  lazy=>1,
-  clearer=>1,
-  default=>sub {
-    my $str='';
-    return $str;
   },
 );
 
@@ -400,6 +420,7 @@ The default values used to generate the hashref contained in in @DB::@PHAZES
 =cut
 
 our @PHAZES=(qw(BEGIN  END  INIT  CHECK  UNITCHECK));
+
 has ignore_blocks=>(
   #isa=>HashRef[Int],
   is=>'ro',
@@ -407,6 +428,19 @@ has ignore_blocks=>(
     return { map { ($_,1) } @PHAZES}
   },
 );
+
+=item * constructor_methods=>HashRef[Int]
+
+This is a hash of method names we consider object constructors
+
+Default: 
+
+  {
+    # we assume new is an object constructor
+    new=>1
+  }
+
+=cut
 
 has constructor_methods=>(
   is=>'ro',
@@ -417,12 +451,29 @@ has constructor_methods=>(
     };
   }
 );
+
+=item * max_depth=>Int
+
+When the value is set to something other than -1, the number represents the maxium stack depth to trace too. Once the frame of max_depth exits, then max_depth will again be set to -1.
+
+=cut
+
 has max_depth=>(
   is=>'rw',
   lazy=>1,
   clearer=>1,
   default=>-1,
 );
+
+=item * tid=>Int
+
+This is mostly here for completeness, retuns the tid id this debugger was created in. 
+
+Note Note Note:
+
+The code was not orginally develpoed without threading in mind, if you wish to trace elemetns within a thread make sure you start an instance of the debugger within that thread.
+
+=cut
 
 has tid=>(
   is=>'rw',
@@ -435,10 +486,17 @@ has tid=>(
   },
 );
 
+=item * existing_trace=>Maybe[InstanceOf['DB']]
+
+This acts as a save point for another existing trace to be exected.
+
+=cut
+
 has existing_trace=>(
   is=>'rw',
   #isa=>Maybe[InstanceOf['DB']],
   lazy=>1,
+  clearer=>1,
   default=>sub { undef },
 );
 
@@ -501,11 +559,51 @@ has filter_on_args=>(
 );
 
 
+=item * pid=>Int
+
+By default this is set to $$
+
+=cut
+
 has pid=>(
   is=>'ro',
   default=>$$,
   #isa=>Int,
 );
+
+=back
+
+=head1 API Methods
+
+This section documents general api methods.
+
+=head2 Bool=$self->_filter($caller,$args)
+
+This method is the core interface used to decide if a method should show up in the debug/stack trace.
+
+This is where the following constructor options are applied:
+
+=over 2
+
+=item * ignore_calling_class_re
+
+The $self->ignore_calling_class_re is applied to each calling or caller->[0], if it matches the frame is ignored.
+
+=item * excludes
+
+If $caller->[0] matches an element of excludes, then this frame is ignored.
+
+=item * resolve_constructor
+
+This converts the "class" portion of the frame value class_method to the first argument of a method that matches anything found in resolve_constructor.
+
+=item * excludes
+
+The updated class value is applied to excludes again, if it matches, then the frame is not traced.
+
+=back
+
+=cut
 
 sub _filter {
   my ($self,$caller,$args)=@_;
@@ -528,6 +626,12 @@ sub _filter {
   return 1;
 }
 
+=head2 $self->resolve_class($class,$method,$caller,$args)
+
+Changes $class to the constructor class if $self->resolve_constructor && exists $self->constructor_methods->{$method} 
+
+=cut
+
 sub resolve_class {
   my ($self,$class,$method,$caller,$args)=@_;
   return unless $#{$args}!=-1 && defined($args->[0]);
@@ -541,6 +645,18 @@ sub resolve_class {
   }
 }
 
+=head2 $self->close_depth($depth)
+
+After a frame ahs finished execution, this method is called.  This removes the frame from $self->depths
+
+Sets the following frame option:
+
+  error     the $@ state
+  end_id    the order_id this frame ended on
+  duration  Execution time in micro seconds
+
+=cut
+
 sub close_depth {
   my ($self,$depth)=@_;
 
@@ -548,13 +664,7 @@ sub close_depth {
   return unless defined $self->depths->[$depth];
 
   my $last=pop $self->depths->@*;
-  if($@ && $self->last_error ne $@) { 
-    $last->{error}=1;
-    $self->last_error($@);
-  } else {
-    $last->{error}=0;
-  }
-  my $t0=delete $last->{t0};
+  my $t0=$last->{t0};
   my $d=tv_interval($t0);
   #$d=0 if index($d,'e')!=-1; # how is this slower than a regex? wow!!!
   $d=0 if $d=~ /e/s;
@@ -566,10 +676,22 @@ sub close_depth {
   $internals=$tmp;
 }
 
+=head2 my $id=$self->next_order_id
+
+Returns the next order_id.
+
+=cut
+
 sub next_order_id {
   my ($self)=@_;
   return $self->order_id(1+$self->order_id);
 }
+
+=head2 $self->close_to($depth,$frame|undef)
+
+Closes down the stack trace to $depth, performs addtional actions if $frame is defiend.
+
+=cut
 
 sub close_to {
   my ($self,$to,$last)=@_;
@@ -601,6 +723,12 @@ sub close_to {
   $self->last_depth($to);
 }
 
+=head2 $self->filter($caller,$args)
+
+This method is called by the DB method after the sub method and is used to place a frame on the stack for tracing.
+
+=cut
+
 sub filter{
   my ($self,$caller,$args)=@_;
 
@@ -621,6 +749,12 @@ sub filter{
   $self->restore_trace;
 }
 
+=head2 Self->save_to($frame)
+
+Saves the frame to the stack trace at the proper depth.
+
+=cut
+
 sub save_to {
   my ($self,$last)=@_;
   
@@ -638,6 +772,12 @@ sub save_to {
   }
 }
 
+=head2 $self->push_to_stack($frame)
+
+This method handles the saving, closing and backfilling logic for a given frame.
+
+=cut
+
 sub push_to_stack {
   my ($self,$last)=@_;
 
@@ -651,6 +791,12 @@ sub push_to_stack {
     $self->save_to($last);
   }
 }
+
+=head2 my $depth=$self->get_depth
+
+Returns undef or a number representing the stack depth.  When the value is undef, the trace would exceed $self->max_depth;
+
+=cut
 
 sub get_depth {
   my ($self)=@_;
@@ -688,6 +834,12 @@ sub get_depth {
   return $start - DEFAULT_DEPTH;
 }
 
+=head2 my $frame=$self->caller_to_ref($caller,$depth|undef,$raw_method,$no_frame)
+
+Returns a frame hashref.  If $depth is not defined a call to $depth is made, if it exceeds a set value of $self->max_depth undef is returned.
+
+=cut
+
 sub caller_to_ref {
   my ($self,$caller,$depth,$raw_method,$no_frame)=@_;
   $no_frame=0 unless defined($no_frame);
@@ -702,7 +854,7 @@ sub caller_to_ref {
   } elsif ($s eq '(eval)') {
      $s = "eval {...}";
   }
-  $f = "file '$f'" unless $f eq '-e';
+  $f = "$f" unless $f eq '-e';
 
   $depth=$self->get_depth unless defined($depth);
   unless(defined($depth)) {
@@ -735,37 +887,62 @@ sub caller_to_ref {
   return $ref;
 }
 
+=head2 $self->reset
+
+Rsets the internals of the object for starting a new stack trace.
+
+=cut
+
 sub reset {
   my ($self)=@_;
   $self->clear_trace;
-  $self->clear_last_error;
   $self->clear_last_depth;
   $self->clear_depths;
   $self->clear_order_id;
   $self->clear_level;
   $self->clear_tid;
   $self->clear_max_depth;
+  $self->clear_existing_trace;
 }
+
+=head2 $self->start_trace
+
+Begins the stack trace process.
+
+=cut
 
 sub start_trace {
   my ($self)=@_;
   $self->reset;
+  if(defined($AGENT)) {
+    $self->existing_trace($AGENT);
+    $AGENT->pause_trace;
+  }
   $self->trace_id($self->trace_id +1);
   $AGENT=$self;
 }
+
+=head2 $self->stop_trace
+
+Ends the current stack trace process.
+
+=cut
 
 sub stop_trace {
   my ($self)=@_;
   $self->close_to(0);
   $AGENT=undef;
+  $AGENT=$self->existing_trace();
+  if(defined($AGENT)) {
+    $AGENT->resume_trace;
+  }
 }
 
-sub DB {
-  return unless $IN_METHOD;
-  $IN_METHOD=0;
+=head2 $self->pause_trace
 
-  $AGENT->filter([caller 1],\@_);
-}
+Turns tracing off until a call to $self->restore_trace is made
+
+=cut
 
 sub pause_trace {
   my ($self)=@_;
@@ -773,10 +950,22 @@ sub pause_trace {
   $IN_METHOD=0;
 }
 
+=head2 $self->restore_trace
+
+Turns tracking back on.
+
+=cut
+
 sub restore_trace {
   my ($self)=@_;
   $AGENT=$self;
 }
+
+=head2 $self->close_sub($res)
+
+This method is called by the sub method.  It is used to send notice that a frame has finished execution.
+
+=cut
 
 sub close_sub {
   my ($self,$res)=@_;
@@ -793,6 +982,73 @@ sub close_sub {
   $self->close_to($depth);
   $self->restore_trace;
 }
+
+=head2 my $frames=$self->grab_missing($depth,$frame);
+
+Returns any skiped frames between $depth and $frame.
+
+$depth is expected to be a number and $frame expected to be a frame hash.
+
+=cut
+
+sub grab_missing {
+  my ($self,$depth,$frame)=@_;
+  my $missing=[];
+
+  $depth=1 if $depth <1;
+
+  return $missing if $depth > $frame->{depth};
+  # stop here if these are both the same depth
+  return $missing if($depth==$frame->{depth});
+
+  for(;$depth<$frame->{depth};++$depth) {
+    push $missing->@*,$self->depths->[$depth];
+  }
+  return $missing;
+}
+
+=head2 DB(@_)
+
+This method is manditory for the implemntation of a debugger.  With the current perl internals it is called every time a breakable point of code is reached. Unfortunatly this overhead is unavoidable. 
+
+Example:
+
+  foreach(1,3,4) { # Debugger would normally stop here
+    someMethod($_)  # agent tracing only happens when your function is called
+  }
+
+  # total calls would be 4 + 3 * 2
+  # 1 call when foreach is reached
+  # 1 call for each element in the loop
+  # 2 times for every method
+
+The as an optimization the agent ensures that tracing only happens on user defined functions. All other operations should be ignored.
+
+The optimization reduces the number of calls to 3 or just once per method.
+
+=cut
+
+sub DB {
+  return unless $IN_METHOD;
+  $IN_METHOD=0;
+  $AGENT->filter([caller 1],\@_);
+}
+
+=head2 sub(@_)
+
+THis is a manditory for implementation, this method is called twice per user defined method.  Once before the execution once to actually run the function.
+
+Example:
+
+  foreach(1,3,4) { 
+    someMethod($_)  # sub is called 2 times per function
+  }
+
+  # calls to sub 6
+
+If $AGENT is undef, this method does nothing.
+
+=cut
 
 sub sub {
   if($IN_METHOD 
@@ -868,6 +1124,10 @@ At runtime, this modue tries to exectue $Devel::Agent::AGENT->filter($caller,$ar
 
   $caller: is the caller information
   $args:   contains an array reference that represents the arguments passed to a given method
+
+=head1 Silly stuff
+
+Please forgive the typos, this was written on holiday in my spare time.
 
 =head1 AUTHOR
 
