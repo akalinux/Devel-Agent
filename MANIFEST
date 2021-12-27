@@ -1,3 +1,7 @@
+blib/lib/Devel/Agent/AwareRole.pm
+blib/lib/Devel/Agent/EveryThing.pm
+blib/lib/Devel/Agent.pm
+blib/lib/Devel/Agent/Proxy.pm
 Changes
 CONTRIBUTING.md
 examples/everything.pl
@@ -8,11 +12,6 @@ lib/Devel/Agent/Proxy.pm
 LICENSE.md
 Makefile.PL
 MANIFEST
-POC/Devel/Agent.pm
-POC/has.pl
-POC/TestA.pm
-POC/TestB.pm
-POC/trace.pl
 README.md
 t/Devel-Agent-AwareRole.t
 t/Devel-Agent-Proxy.t
