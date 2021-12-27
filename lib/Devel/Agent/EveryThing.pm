@@ -12,7 +12,7 @@ Devel::Trace::EveryThing
 
 This is a module that makes use of the agent debugger and writes the begining and ending of every frame to STDERR.
 
-Although this module is similar to Deve::Trace, it offers some distinct advantages, such as tracing how long each method runs for and providing a noted stack depth of the execution order.
+Although this module is similar to Deve::Trace, but it offers some distinct advantages such as: tracing how long each method runs for and providing a noted stack depth of the execution order, and Devel::Trace::EvetyThing will often catch runtime execution of user defined methods that Devel::Trace will miss.
 
 =head1 Notes and limitations
 
