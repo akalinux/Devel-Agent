@@ -13,6 +13,7 @@ WriteMakefile(
       Modern::Perl 0
       Role::Tiny   0
       Moo          0
+      AnyEvent     0
     )
     }
 );
