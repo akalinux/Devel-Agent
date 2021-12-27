@@ -14,6 +14,7 @@ POC/TestA.pm
 POC/TestB.pm
 POC/trace.pl
 README.md
+t/Devel-Agent-AwareRole.t
 t/Devel-Agent-Proxy.t
 t/Devel-Agent.t
 t/TestMe2.pm

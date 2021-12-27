@@ -12,7 +12,7 @@ Devel::Trace::EveryThing
 
 This is a module that makes use of the agent debugger and writes the begining and ending of every frame to STDERR.
 
-Although this module is similar to Deve::Trace, but it offers some distinct advantages such as: tracing how long each method runs for and providing a noted stack depth of the execution order, and Devel::Trace::EvetyThing will often catch runtime execution of user defined methods that Devel::Trace will miss.
+This module is similar to Deve::Trace, but makes use of the Deve::Agent deugger.  This allows for tracing how long each method runs for and providing a noted stack depth of the execution order.
 
 =head1 Notes and limitations
 
@@ -53,7 +53,7 @@ sub print_frame {
   my $format;
   if(exists $frame->{duration}) {
     frame_start($depth,$frame) unless delete $pending->{$frame->{depth}};
-    printf STDERR "\%${depth}s%s End Frame:   %i Line: File: \%s %i Duration: %f\n",'',@{$frame}{qw(class_method order_id source line duration)};
+    printf STDERR "\%${depth}s%s Depth: %i End Frame:   \%i Line: File: \%s %i Duration: %f\n",'',@{$frame}{qw(class_method depth order_id source line duration)};
   } else {
     $pending->{$frame->{depth}}=1;
     frame_start($depth,$frame);
@@ -62,7 +62,7 @@ sub print_frame {
 
 sub frame_start{
   my ($depth,$frame)=@_;
-  printf STDERR "\%${depth}s\%s Start Frame: %i File: \%s Line: \%i\n",'',@{$frame}{qw(class_method order_id source line)};
+  printf STDERR "\%${depth}s\%s Depth: %i Start Frame: \%i File: \%s Line: \%i\n",'',@{$frame}{qw(class_method depth order_id source line)};
 }
 $self=DB->new(
   on_frame_end=>\&flush_row,
@@ -70,6 +70,11 @@ $self=DB->new(
 $self->start_trace;
 # it starts but never stops
 
+
+END {
+  # hun, turns out we needed this!
+  $self->stop_trace;
+}
 
 1;
 

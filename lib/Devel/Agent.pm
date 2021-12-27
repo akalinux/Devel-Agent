@@ -536,7 +536,7 @@ has process_result=>(
 
 =item * filter_on_args=>CodeRef
 
-This allows a code ref to be passed in to filter arguments passed into an method.  If the method returns false, the frame is ignored.
+This allows a code ref to be passed in to filter arguments passed into a method.  If the method returns false, the frame is ignored.
 
 Default always returns true
 
@@ -930,7 +930,7 @@ Ends the current stack trace process.
 
 sub stop_trace {
   my ($self)=@_;
-  $self->close_to(0);
+  $self->close_to(1);
   $AGENT=undef;
   $AGENT=$self->existing_trace();
   if(defined($AGENT)) {
@@ -1103,6 +1103,7 @@ sub sub {
 
 sub DESTROY {
   my ($self)=@_;
+  $self->reset;
 }
 
 1;
