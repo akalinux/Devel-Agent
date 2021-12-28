@@ -1,12 +1,12 @@
-package Devel::Trace::EveryThing;
+package Devel::Agent::EveryThing;
 
 =head1 NAME
 
-Devel::Trace::EveryThing
+Devel::Agent::EveryThing - Trace Eveything
 
 =head1 SYNOPSIS
 
-  perl -d:Agent -MDevel::Trace::EveryThing myscript.pl
+  perl -d:Agent -MDevel::Agent::EveryThing myscript.pl
 
 =head1 DESCRIPTION
 
@@ -16,7 +16,7 @@ This module is similar to L<Devel::Trace>, but makes use of the L<Devel::Agent> 
 
 =head1 Notes and limitations
 
-This class does not trace entry int control structures, just execution of Non-XS methods.
+This class does not trace entry into control structures, just execution of Non-XS methods.
 
 =cut
 

@@ -12,3 +12,7 @@
   -- unit test skip count is now correct
 0.005
   -- Pod cleanups
+0.006
+  -- Renamed Devel::Trace::EveryThing to Devel::Agent::EveryThing
+  -- more pod cleanups
+  -- updated Devel::Agent SYNOPSIS
