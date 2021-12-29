@@ -116,7 +116,7 @@ Some important notes:
   on_frame_end=>\&flush_row,
     # this method outputs to STDERR by default
     # it is imported from Devel::Agent::Util
-    
+
 =item * $TRACE_EVERY
 
 This represents how often a psgi trace will happen, default is 1.
