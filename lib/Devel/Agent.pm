@@ -19,7 +19,7 @@ This is accomplished by running the script or code in debug mode, "perl -d:Agent
 use strict;
 use warnings;
 use 5.34.0;
-our $VERSION=.006;
+our $VERSION=.007;
 
 our %VER_FIX;
 BEGIN {
@@ -86,7 +86,7 @@ BEGIN {
   foreach my $opt (@DB_DISABLE) {
     $^P=$^P & ($^P ^ $opt);
   }
-
+  
 }
 
 =head1 Agent interface
@@ -197,7 +197,7 @@ require Scalar::Util;
 # as easy as Moo makes things.. its not welcome in a debugger ;(
 use Time::HiRes qw(gettimeofday tv_interval);
 use B qw(svref_2object);
-#use Data::Dumper;
+use Data::Dumper;
 
 our $AGENT;
 my $IN_METHOD=0;
@@ -282,6 +282,7 @@ our @EXCLUDE_DEFAULTS=(
     strict
     warnings
     Sub::Defer
+    B
   )
 );
 
@@ -524,10 +525,13 @@ The code was not orginally develpoed without threading in mind, if you wish to t
 has tid=>(
   is=>'rw',
   clearer=>1,
-  lazy=>1,
   default=>sub {
     my $tid=1;
-    eval { $tid=threads->tid };
+    eval { 
+     if(my $cb=threads->can('tid')) {
+       $tid=threads->$cb();
+     }
+    };
     return $tid;
   },
 );
@@ -589,7 +593,6 @@ has process_result=>(
   is=>'ro',
   #isa=>CodeRef,
   default=>sub { sub {} },
-  lazy=>1,
 );
 
 =item * filter_on_args=>CodeRef
@@ -615,7 +618,6 @@ has filter_on_args=>(
   is=>'ro',
   #isa=>CodeRef,
   default=>sub { sub {1} },
-  lazy=>1,
 );
 
 
@@ -669,12 +671,12 @@ sub _filter {
   my ($self,$caller,$args)=@_;
   
   return 0 unless defined($caller->[0]);
-  foreach my $re (@{$self->ignore_calling_class_re}) {
+  foreach my $re ($self->{ignore_calling_class_re}->@*) {
     if($caller->[0]=~ $re) {
       return 0;
     }
   }
-  return 0 if exists $self->excludes->{$caller->[0]};
+  return 0 if exists $self->{excludes}->{$caller->[0]};
   my $caller_class=$caller->[3];
   return 0 unless defined $caller_class;
 
@@ -682,7 +684,7 @@ sub _filter {
 
   $self->resolve_class($class,$method,$caller,$args);
 
-  return 0 if exists $self->excludes->{$class};
+  return 0 if exists $self->{excludes}->{$class};
   return 1;
 }
 
@@ -696,7 +698,7 @@ sub resolve_class {
   my ($self,$class,$method,$caller,$args)=@_;
   return unless $#{$args}!=-1 && defined($args->[0]);
 
-  if($self->resolve_constructor && exists $self->constructor_methods->{$method} ) {
+  if($self->{resolve_constructor} && exists $self->{constructor_methods}->{$method} ) {
     my $new_class=$args->[0];
     if($new_class->DOES($class)) {
       $caller->[3]=$class.'::'.$method;
@@ -720,22 +722,16 @@ Sets the following frame option:
 sub close_depth {
   my ($self,$depth)=@_;
 
-  # work around for the $self->stop_trace;
-  unless(defined $self->depths->[$depth]) {
-    print "$depth is not defined\n";
-    return;
-  }
-
-  my $last=pop $self->depths->@*;
+  my $last=pop $self->{depths}->@*;
   my $t0=$last->{t0};
   my $d=tv_interval($t0);
-  #$d=0 if index($d,'e')!=-1; # how is this slower than a regex? wow!!!
-  $d=0 if $d=~ /e/s;
+  $d=0 if index($d,'e')!=-1; # how is this slower than a regex? wow!!!
+  #$d=0 if $d=~ /e/s;
   $last->{duration}=$d;
   $last->{end_id}=$self->next_order_id,
   my $tmp=$internals;
   $internals=1;
-  $self->on_frame_end->($self,$last);
+  $self->{on_frame_end}->($self,$last);
   $internals=$tmp;
 }
 
@@ -747,7 +743,7 @@ Returns the next order_id.
 
 sub next_order_id {
   my ($self)=@_;
-  return $self->order_id(1+$self->order_id);
+  return $self->{order_id}=1+$self->{order_id};
 }
 
 =head2 $self->close_to($depth,$frame|undef)
@@ -759,13 +755,13 @@ Closes down the stack trace to $depth, performs addtional actions if $frame is d
 sub close_to {
   my ($self,$to,$last)=@_;
 
-  if($to<=$self->max_depth) {
+  if($to<=$self->{max_depth}) {
     # reset our max depth to -1;
-    $self->max_depth(-1);
+    $self->{max_depth}=-1;
   }
 
   my $target;
-  my $size=$self->depths->$#*;
+  my $size=$self->{depths}->$#*;
   for(my $depth=$size;$depth>0;--$depth) {
     if($depth==$to) {
       $self->close_depth($depth);
@@ -783,7 +779,7 @@ sub close_to {
   } elsif(defined($last)) {
     $self->save_to($last);
   }
-  $self->last_depth($to);
+  $self->{last_depth}=$to;
 }
 
 =head2 $self->filter($caller,$args)
@@ -801,12 +797,12 @@ sub filter{
   my $last=$self->caller_to_ref($caller,undef,$DB::sub,0);
   return $self->restore_trace unless defined($last);
 
-  unless($self->filter_on_args->($self,$last,$args,$raw_caller)){
+  unless($self->{filter_on_args}->($self,$last,$args,$raw_caller)){
     $self->restore_trace;
     return;
   }
 
-  if($self->agent_aware) {
+  if($self->{agent_aware}) {
     unless($self->_agent_aware($last,$args,$raw_caller)) {
       $self->restore_trace;
       return;
@@ -814,8 +810,8 @@ sub filter{
   }
 
   $self->push_to_stack($last);
-  my $level=$self->level;
-  push $level->[$level->$#*]->@*,$self->last_depth;
+  my $level=$self->{level};
+  push $level->[$level->$#*]->@*,$self->{last_depth};
   $self->restore_trace;
 }
 
@@ -856,16 +852,16 @@ sub save_to {
   my ($self,$last)=@_;
   
   my $depth=$last->{depth};
-  $self->depths->[$depth]=$last;
+  $self->{depths}->[$depth]=$last;
 
-  $self->last_depth($depth);
+  $self->{last_depth}=$depth;
   # stop here unless someone wants the frames saved in memory
   return unless $self->save_to_stack;
   if($depth==1) {
-    push $self->trace->@*,$self->depths->[$depth]=$last;
+    push $self->trace->@*,$self->{depths}->[$depth]=$last;
   } else {
     my $root=$depth -1;
-    push $self->depths->[$root]->{calls}->@*,$self->depths->[$depth]=$last;
+    push $self->{depths}->[$root]->{calls}->@*,$self->{depths}->[$depth]=$last;
   }
 }
 
@@ -879,7 +875,7 @@ sub push_to_stack {
   my ($self,$last)=@_;
 
   my $depth=$last->{depth};
-  my $last_depth=$self->last_depth;
+  my $last_depth=$self->{last_depth};
   if($last_depth==0) {
     $self->save_to($last);
   } elsif($depth<= $last_depth) {
@@ -899,12 +895,12 @@ sub get_depth {
   my ($self)=@_;
   my $start = DEFAULT_DEPTH;
   # skip un-needed depth checking
-  $start +=$self->depths->$#* if $self->depths->$#* >0;
+  $start +=$self->{depths}->$#* if $self->{depths}->$#* >0;
   my $depth=$start - DEFAULT_DEPTH;
 
   my $caller=[caller($start)];
   my $no_frame=[];
-  my $max=$self->max_depth;
+  my $max=$self->{max_depth};
   while($caller->$#*!=-1) {
     if($max!=-1) {
       my $pos=$depth +1;
@@ -914,7 +910,7 @@ sub get_depth {
     }
 
     if($start !=DEFAULT_DEPTH) {
-      unless(defined $self->depths->[$depth]) {
+      unless(defined $self->{depths}->[$depth]) {
         push $caller->@*,$depth;
         push $no_frame->@*,$caller;
       }
@@ -960,8 +956,8 @@ sub caller_to_ref {
 
   my $root=$depth -1;
   my $owner_id=0;
-  if($root!=0 && defined $self->depths->[$root]) {
-    $owner_id=$self->depths->[$root]->{order_id};
+  if($root!=0 && defined $self->{depths}->[$root]) {
+    $owner_id=$self->{depths}->[$root]->{order_id};
   }
   
   my $ref={ 
@@ -992,14 +988,21 @@ Rsets the internals of the object for starting a new stack trace.
 
 sub reset {
   my ($self)=@_;
-  $self->clear_trace;
-  $self->clear_last_depth;
-  $self->clear_depths;
-  $self->clear_order_id;
-  $self->clear_level;
-  $self->clear_tid;
-  $self->clear_max_depth;
-  $self->clear_existing_trace;
+  foreach my $key (
+  qw(
+  trace
+  last_depth
+  depths
+  order_id
+  level
+  tid
+  max_depth
+  existing_trace
+  )) {
+    my $method="clear_$key";
+    $self->$method();
+    $self->$key();
+  }
 }
 
 =head2 $self->start_trace
@@ -1018,6 +1021,7 @@ sub start_trace {
   $self->trace_id($self->trace_id +1);
   $AGENT=$self;
 }
+
 
 =head2 $self->stop_trace
 
@@ -1067,16 +1071,16 @@ This method is called by the sub method.  It is used to send notice that a frame
 sub close_sub {
   my ($self,$res)=@_;
   $self->pause_trace;
-  my $level=pop $self->level->@*;
+  my $level=pop $self->{level}->@*;
 
   if($level->$#*==0) {
     $self->restore_trace;
     return;
   }
   my $depth=$level->[1];
-  my $last=$self->depths->[$depth];
+  my $last=$self->{depths}->[$depth];
   $self->close_to($depth);
-  $self->process_result->($self,$res,$last);
+  $self->{process_result}->($self,$res,$last);
   $self->restore_trace;
 }
 
@@ -1099,7 +1103,7 @@ sub grab_missing {
   return $missing if($depth==$frame->{depth});
 
   for(;$depth<$frame->{depth};++$depth) {
-    push $missing->@*,$self->depths->[$depth];
+    push $missing->@*,$self->{depths}->[$depth];
   }
   return $missing;
 }
@@ -1161,7 +1165,7 @@ sub sub {
   
   if(ref($DB::sub)) {
     my $name=svref_2object($DB::sub)->GV->NAME;
-    if(defined($name) && exists $AGENT->ignore_blocks->{$name}) {
+    if(defined($name) && exists $AGENT->{ignore_blocks}->{$name}) {
       my $agent=$AGENT;
       $IN_METHOD=0;
       $AGENT=undef;
@@ -1178,22 +1182,22 @@ sub sub {
       }
     }
   }
-  push $AGENT->level->@*,[$DB::sub];
+  push $AGENT->{level}->@*,[$DB::sub];
 
   $IN_METHOD=1;
   
   no strict 'refs';
   if ($DB::sub eq 'DESTROY' or substr($DB::sub, -9) eq '::DESTROY' or not defined wantarray) {
     $DB::ret=&$DB::sub;
-    $AGENT->close_sub(-1);
+    $AGENT->close_sub(-1) if defined $AGENT;
     $DB::ret = undef;
   } elsif (wantarray) {
     @DB::ret = &$DB::sub;
-    $AGENT->close_sub(1);
+    $AGENT->close_sub(1) if defined $AGENT;
     @DB::ret;
   } else {
     $DB::ret = &$DB::sub;
-    $AGENT->close_sub(0);
+    $AGENT->close_sub(0) if defined $AGENT;
     $DB::ret;
   }
 }
@@ -1224,8 +1228,7 @@ At runtime, this modue tries to exectue $Devel::Agent::AGENT->filter($caller,$ar
 
 =head1 TODO
 
-  1. Add Plack periodic trace implementation/example
-  2. Add Dancer2 periodic trace implementation/example
+  1. Add Dancer2 trace implementation/example
 
 =head1 AUTHOR
 

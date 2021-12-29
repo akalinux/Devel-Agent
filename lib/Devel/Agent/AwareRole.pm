@@ -2,7 +2,9 @@ package Devel::Agent::AwareRole;
 
 use Modern::Perl;
 use Role::Tiny;
-our $VERSION=.001;
+require Devel::Agent;
+our $VERSION=$Devel::Agent::VERSION;
+
 require Scalar::Util;
 
 sub ___db_stack_filter { 

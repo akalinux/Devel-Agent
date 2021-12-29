@@ -26,7 +26,8 @@ This class was created to act as an agent aware wrapper for classes that interna
 use strict;
 use warnings;
 require Carp;
-our $VERSION=0.0002;
+require Devel::Agent;
+our $VERSION=$Devel::Agent::VERSION;
 
 # COMMENT THIS OUT AFTER TESTING!!
 #use Data::Dumper;

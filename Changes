@@ -16,3 +16,13 @@
   -- Renamed Devel::Trace::EveryThing to Devel::Agent::EveryThing
   -- more pod cleanups
   -- updated Devel::Agent SYNOPSIS
+0.007
+  -- Removed errand print statement
+  -- Internals now use $self->{...} in place of $self->method to reduce overhead
+  -- Modules now pull thier version from Devel::Agent
+  -- Added Plack::Middleware::Devel::Agent::Plack
+  -- Created a basic stder frame dumper module
+  -- Added min version of perl to the Makefile.PL
+  -- Added addtional unit test requirements
+  -- Added new required packages
+  -- added hard LICENSE file for metacpan
