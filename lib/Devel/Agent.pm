@@ -10,7 +10,7 @@ Devel::Agent - Agent like debugger interface
 
 =head1 DESCRIPTION
 
-For years people in the perl commnity have been asking for a way to do performance monitoring and tracing of runtime production code. This module attempts to fill this role by implementing a stripped down debugger that is intended to provide an agent or agent like interface for perl 5.34.0+ that is simlilar in nature to the agent interface in other langagues Such as python or java.  
+For years people in the perl commnity have been asking for a way to do performance monitoring and tracing of runtime production code. This module attempts to fill this role by implementing a stripped down debugger that is intended to provide an agent or agent like interface for perl 5.34.0+ that is simlilar in nature to the agent interface in other languages Such as python or java.  
 
 This is accomplished by running the script or code in debug mode, "perl -d:Agent"  and then turning the debugger on only as needed to record traching and performance metrics.  That said this module just provides an agent interface, it does not act on code directly until something turns it on.
 
@@ -19,7 +19,7 @@ This is accomplished by running the script or code in debug mode, "perl -d:Agent
 use strict;
 use warnings;
 use 5.34.0;
-our $VERSION=.007;
+our $VERSION=.008;
 
 our %VER_FIX;
 BEGIN {
